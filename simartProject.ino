@@ -3,7 +3,7 @@
 #include <PubSubClient.h>
 #include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
-#define RELAY_PIN D1
+#define RELAY_PIN D3
 
 LiquidCrystal_I2C lcd(0x27,16,2);
 //input ssid dan password wifi
@@ -30,15 +30,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
     Serial.print((char)payload[i]);
   }
   Serial.println();
-
-  // Switch on the LED if an 1 was received as first character
-  // if ((char)payload[0] == '1') {
-  //   digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
-  //   // but actually the LED is on; this is because
-  //   // it is active low on the ESP-01)
-  // } else {
-  //   digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
-  // }
 
 }
 
@@ -70,17 +61,17 @@ unsigned long lastMsgTime = 0;
 const unsigned long publishInterval = 2000;
 const char* sensorValueTopic = "sensorValue";
 const char* moisturePercentageTopic = "moisturePercentage";
+const char* statusTopic = "status";
 
-const int soilMoisturePin = A0; // Ubah ke pin yang Anda gunakan
-const int N_sangat_kering = 900; // > ini = kering
-const int N_kering = 700; // > ini = kering
-const int N_netral = 450; // > ini = kering
-const int N_lembab = 300; // > ini = kering
-const int N_sangat_lembab = 100; //< ini = basah
+const int soilMoisturePin = A0;
 
-const int v_kering = 700;
-const int v_netral = 450;
-const int v_basah = 300;
+//derajat keanggotaan untuk fuzzy
+const int N_sangat_kering = 800;
+const int N_kering = 600; 
+const int N_netral = 425; 
+const int N_lembab = 300; 
+const int N_sangat_lembab = 100;
+
 
 int sensorValue = 0;
 int moisturePercentage = 0;
@@ -103,15 +94,9 @@ void setup() {
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
     //lcd 
-    lcd.init();                      // initialize the lcd 
+    lcd.init();                      
     lcd.backlight();
-    lcd.setCursor(0,0);
-    lcd.print("N_Sensor : ");
-    lcd.print(sensorValue);
-    lcd.setCursor(0,1);
-    lcd.print("kelembapan : ");
-    lcd.print(moisturePercentage);
-    lcd.print("%");
+    //mqtt
     client.setServer(host, port);
     client.setCallback(callback);
     //relay
@@ -120,37 +105,9 @@ void setup() {
 
 void loop() {
 
-  if (!client.connected()) {
-    reconnect();
-  }
-
-  unsigned long now = millis();
-
-  if (now - lastMsgTime > publishInterval) {
-    lastMsgTime = now;
-
-    sensorValue = analogRead(soilMoisturePin);
-    moisturePercentage = map(sensorValue, 1023, 0, 0, 100);
-
-    char sensorValueStr[10];
-    char moisturePercentageStr[10];
-
-    itoa(sensorValue, sensorValueStr, 10);
-    itoa(moisturePercentage, moisturePercentageStr, 10);
-
-    client.publish(sensorValueTopic, sensorValueStr);
-    client.publish(moisturePercentageTopic, moisturePercentageStr);
-
-    Serial.print("Mempublish NilaiSensor: ");
-    Serial.println(sensorValue);
-    Serial.print("Mempublish Kelembapan: ");
-    Serial.println(moisturePercentage);
-  }
-
-  client.loop();
 
     //fuzzyfikasi varibel nilai sensor
-    //mencari nilai untuk derajat keanggotaan sangat lembab
+    //mencari nilai inferensi untuk derajat keanggotaan sangat lembab
     int sangat_lembab;
     if(N_lembab < sensorValue){
         
@@ -231,15 +188,15 @@ void loop() {
     }
 
     //aturan rule 
-    //[R1] jika sangat kering , waktu penyiraman = 2 menit
-    //[R2] jika kering , waktu penyiraman =  1 menit
-    //[R3] jika netral , waktu penyiraman = 40 detik
-    //[R4] jika basah , waktu penyiraman = 20 detik
-    //[R5] jika sangat basah , waktu penyiraman = 0 detik
-    const int w1 = 120000;
-    const int w2 = 60000;
-    const int w3 = 40000;
-    const int w4 = 20000;
+    //[R1] jika kelembapan sangat kering , waktu penyiraman = 4 menit
+    //[R2] jika kelembapan kering , waktu penyiraman =  3 menit
+    //[R3] jika kelembapan netral , waktu penyiraman = 2 menit
+    //[R4] jika kelembapan basah , waktu penyiraman =  1 menit
+    //[R5] jika kelembapan sangat basah , waktu penyiraman = 0 
+    const int w1 = 240000;
+    const int w2 = 180000;
+    const int w3 = 120000;
+    const int w4 = 60000;
     const int w5 = 0;
     
 
@@ -255,36 +212,94 @@ void loop() {
     Serial.print(" maka waktu yang diperlukan adalah : ");
     Serial.println(hasil);
 
+    lcd.setCursor(0,0);
+    lcd.print("N_Sensor : ");
+    lcd.print(sensorValue);
+    lcd.setCursor(0,1);
+    lcd.print("kelembapan : ");
+    lcd.print(moisturePercentage);
+    lcd.print("%");
 
-    // // // nilai kelembapan dengan ambang batas
-
-    if (sensorValue > v_kering) {
-          digitalWrite(RELAY_PIN, HIGH);
-          delay(1000);
-  
-          digitalWrite(RELAY_PIN, LOW);
-          delay(10000);
-
-    } else if (sensorValue < v_kering && sensorValue > v_netral) {
-          digitalWrite(RELAY_PIN, HIGH);
-          delay(1000);
-  
-          digitalWrite(RELAY_PIN, LOW);
-          delay(6000);
-
-    } else if (sensorValue < v_netral && sensorValue > v_basah){
-          digitalWrite(RELAY_PIN, HIGH);
-          delay(1000);
-  
-          digitalWrite(RELAY_PIN, LOW);
-          delay(2000);
+    const char* status;
+    if (sensorValue > 800) {
+          status = "sangat kering";
+    } else if (sensorValue < 800 && sensorValue > 600) {
+          status = "kering";
+    } else if (sensorValue < 600 && sensorValue > 425){
+          status = "OnGoing";
+    } 
+    else if (sensorValue < 425 && sensorValue > 300){
+          status = "netral";
+    }else if(sensorValue < 300 && sensorValue > 200){
+      status = "basah";
     }else {
-          digitalWrite(RELAY_PIN, HIGH);
-          delay(1000);
-  
-          digitalWrite(RELAY_PIN, LOW);
-          delay(1000);
+      status = "sangat basah";
     }
+
+    Serial.print("status kelembapan : ");
+    Serial.println(status);
+
+    //kirim data ke database melalui protokol MQQT 
+     if (!client.connected()) {
+    reconnect();
+  }
+
+  unsigned long now = millis();
+  if (now - lastMsgTime > publishInterval) {
+    lastMsgTime = now;
+
+    sensorValue = analogRead(soilMoisturePin);
+    moisturePercentage = map(sensorValue, 1023, 0, 0, 100);
+
+    char sensorValueStr[10];
+    char moisturePercentageStr[10];
+
+    itoa(sensorValue, sensorValueStr, 10);
+    itoa(moisturePercentage, moisturePercentageStr, 10);
+
+    client.publish(sensorValueTopic, sensorValueStr);
+    client.publish(moisturePercentageTopic, moisturePercentageStr);
+    client.publish(statusTopic, status);
+
+    Serial.print("Mempublish NilaiSensor: ");
+    Serial.println(sensorValue);
+    Serial.print("Mempublish Kelembapan: ");
+    Serial.println(moisturePercentage);
+    Serial.print("Mempublish status: ");
+    Serial.println(status);
+  }
+
+  client.loop();
+
+  //tindakan sesuai dengan thershold yang telah ditentukan
+    // if (sensorValue > 800) {
+
+    //       digitalWrite(RELAY_PIN, HIGH);
+    //       delay(10000);
+  
+    //       digitalWrite(RELAY_PIN, LOW);
+    //       delay(hasil);
+
+    // } else if (sensorValue < 800 && sensorValue > 600) {
+    //       digitalWrite(RELAY_PIN, HIGH);
+    //       delay(10000);
+  
+    //       digitalWrite(RELAY_PIN, LOW);
+    //       delay(hasil);
+
+    // } else if (sensorValue < 600 && sensorValue > 425){
+    //       digitalWrite(RELAY_PIN, HIGH);
+    //       delay(10000);
+    //       digitalWrite(RELAY_PIN, LOW);
+    //       delay(hasil);
+    // } 
+    // else if (sensorValue < 425 && sensorValue > 300){
+    //       digitalWrite(RELAY_PIN, HIGH);
+    // }else if(sensorValue < 300 && sensorValue > 200){
+    //    digitalWrite(RELAY_PIN, HIGH);
+    // }else {
+    //    digitalWrite(RELAY_PIN, HIGH);
+    // }
 
   delay(2000);
 }
