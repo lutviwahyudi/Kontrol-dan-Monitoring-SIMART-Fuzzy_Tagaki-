@@ -21,42 +21,6 @@ unsigned long lastMsg = 0;
 char msg[MSG_BUFFER_SIZE];
 int value = 0;
 
-
-void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
-
-}
-
-void reconnect() {
-  // Loop until we're reconnected
-  while (!client.connected()) {
-    Serial.print("Attempting MQTT connection...");
-    // Create a random client ID
-    String clientId = "ESP8266Client-";
-    clientId += String(random(0xffff), HEX);
-    // Attempt to connect
-    if (client.connect(clientId.c_str(), "privatelutvi", "3auTMdqoX8b3D4XE")) {
-      Serial.println("connected");
-      // Once connected, publish an announcement...
-      client.publish("suhu", "selamat anda berhasil");
-      // ... and resubscribe
-      client.subscribe("terima");
-    } else {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(2000);
-    }
-  }
-}
-
 unsigned long lastMsgTime = 0;
 const unsigned long publishInterval = 2000;
 const char* sensorValueTopic = "sensorValue";
@@ -321,4 +285,39 @@ void tagakiSugenoKang(){
     Serial.print(moisturePercentage); // Mencetak nilai dari variabel kelembapan
     Serial.print(" maka waktu yang diperlukan adalah : ");
     Serial.println(hasil);
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+
+}
+
+void reconnect() {
+  // Loop until we're reconnected
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Create a random client ID
+    String clientId = "ESP8266Client-";
+    clientId += String(random(0xffff), HEX);
+    // Attempt to connect
+    if (client.connect(clientId.c_str(), "privatelutvi", "3auTMdqoX8b3D4XE")) {
+      Serial.println("connected");
+      // Once connected, publish an announcement...
+      client.publish("suhu", "selamat anda berhasil");
+      // ... and resubscribe
+      client.subscribe("terima");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(2000);
+    }
+  }
 }
